@@ -44,14 +44,14 @@ def extract_RLWE(n,a,b,i_coeff):
 
 
 # Function to perform KeySwitch
-def key_switch(n,q,B,𝜎,t,s,s_prime,a_prime,b_prime):
+def key_switch(n,q,B,sigma,t,s,s_prime,a_prime,b_prime):
     """ Function to perform KeySwitch 
     from (a',b')=RLWE_{s'}(P) to (a,b)=RLWE_{s}(P) 
     Params:
     @n          (int): security parameter (underlying lattice dimension)
     @q          (int): quotient modulus Zq
     @B          (int): base for decomposition
-    @𝜎        (float): standard deviation of discrete Gaussian
+    @sigma        (float): standard deviation of discrete Gaussian
     @s       (poly1d): secret key
     @s_prime (poly1d): secret key
     @a_prime (poly1d): drawn vector for cipher
@@ -63,15 +63,20 @@ def key_switch(n,q,B,𝜎,t,s,s_prime,a_prime,b_prime):
     k = floor(log(q,B))
     # compute vector (1,B,B^2,...,B^{k-1})
     powers = B**(np.arange(k))
+    
     # decomposition of a_prime
     a_prime_dec = base_decomp(poly=a_prime,q=q,B=B)
+    
     # initialize matrix of KeySwitch values
     KS = np.empty((k,2),dtype=object)
     # fill KS matrix
     for j,Bj in enumerate(powers):
-        temp = np.poly1d( int(Bj*s_prime) % q)
+        # compute s_prime * Bj
+        temp = int(Bj)*s_prime.coef % q
+
+        temp = np.poly1d(temp)
         # Encrypt the RLWE_s (B^j s')
-        KS_ja, KS_jb = RLWE(n=n,q=q,𝜎=𝜎,s=s,t=t,m=temp)
+        KS_ja, KS_jb = RLWE(n=n,q=q,sigma=sigma,s=s,t=t,m=temp)
         KS[j,0] = KS_ja
         KS[j,1] = KS_jb
     # perform product
@@ -85,12 +90,12 @@ def key_switch(n,q,B,𝜎,t,s,s_prime,a_prime,b_prime):
     b = mod(poly=b_prime - prod1,q=q,poly_modulus=pol_mod)
     return a,b
 
-def get_BK(n,q,σ,t,B,s,s_prime):
+def get_BK(n,q,sigma,t,B,s,s_prime):
     """ Compute matrix of Bootstrap Keys
     Params:
     @n       (int): security parameter (underlying lattice dimension)
     @q       (int): quotient modulus Zq
-    @𝜎     (float): standard deviation of discrete Gaussian
+    @sigma     (float): standard deviation of discrete Gaussian
     @s    (poly1d): secret key
     @t       (int): message modulus
     @B       (int): base for decomposition
@@ -107,15 +112,15 @@ def get_BK(n,q,σ,t,B,s,s_prime):
     for i in range(n):
         for j in range(q):
             X_j_si = mod(poly=np.poly1d([1] + int(j*s[i]) * [0]),q=q,poly_modulus=pol_mod)
-            BK[i,j] = RGSW(n=n, q=q, σ=σ, s=s_prime, t=t, B=B, m=X_j_si)
+            BK[i,j] = RGSW(n=n, q=q, sigma=sigma, s=s_prime, t=t, B=B, m=X_j_si)
     return BK
 
-def get_BK_dec(n,q,σ,t,B,Br,s,s_prime):
+def get_BK_dec(n,q,sigma,t,B,Br,s,s_prime):
     """ Compute matrix of Bootstrap Keys with Decomposition Br
     Params:
     @n       (int): security parameter (underlying lattice dimension)
     @q       (int): quotient modulus Zq
-    @𝜎     (float): standard deviation of discrete Gaussian
+    @sigma     (float): standard deviation of discrete Gaussian
     @s    (poly1d): secret key
     @t       (int): message modulus
     @B       (int): base for decomposition in RGSW
@@ -135,7 +140,7 @@ def get_BK_dec(n,q,σ,t,B,Br,s,s_prime):
         for j in range(l):
             for v in range(Br): 
                 X_v_j_si = mod(poly=np.poly1d([1] + int(v*j*s[i]) * [0]),q=q,poly_modulus=pol_mod)
-                BK[i,j,v] = RGSW(n=n, q=q, σ=σ, s=s_prime, t=t, B=B, m=X_v_j_si)
+                BK[i,j,v] = RGSW(n=n, q=q, sigma=sigma, s=s_prime, t=t, B=B, m=X_v_j_si)
     return BK
 
 def accu_AP(n,q,B,a,b,w,BK):
@@ -196,12 +201,12 @@ def accu_AP_dec(n,q,B,Br,a,b,w,BK):
     return acc_a, acc_b
 
 
-def bootstrap_AP(n,q,σ,t,B,a,b,w,s,s_prime):
+def bootstrap_AP(n,q,sigma,t,B,a,b,w,s,s_prime):
     """ Perform Bootstrap AP
     Params:
     @n       (int): security parameter (underlying lattice dimension)
     @q       (int): quotient modulus Zq
-    @𝜎     (float): standard deviation of discrete Gaussian
+    @sigma     (float): standard deviation of discrete Gaussian
     @s    (poly1d): secret key
     @t       (int): message modulus
     @B       (int): base for decomposition
@@ -211,23 +216,23 @@ def bootstrap_AP(n,q,σ,t,B,a,b,w,s,s_prime):
     (a0,b0) = LWE_s with small errors
     """
     # get matrix of Bootstrap Keys
-    BK = get_BK(n=n,q=q,σ=σ,t=t,B=B,s=s,s_prime=s_prime)
+    BK = get_BK(n=n,q=q,sigma=sigma,t=t,B=B,s=s,s_prime=s_prime)
     # Step 1. ACC-part to get RLWE under s_prime
     a_prime, b_prime = accu_AP(n=n,q=q,B=B,a=a,b=b,w=w,BK=BK)
     # Step 2. Perform KeySwitch RLWE_{s'} --> RLWE_{s}
-    a_poly, b_poly = key_switch(n=n,q=q,B=B,𝜎=𝜎,s=s,
+    a_poly, b_poly = key_switch(n=n,q=q,B=B,sigma=sigma,s=s,
                                 s_prime=s_prime,a_prime=a_prime,b_prime=b_prime)
     # Step 3. Extract cipher LWE of coeff_0(RLWE_{s})
     a_0, b_0 = extract_RLWE(a=a_poly,b=poly,i_coeff=0)
     # return new cipher LWE
     return a_0, b_0
 
-def bootstrap_AP_dec(n,q,σ,t,B,Br,a,b,w,s,s_prime):
+def bootstrap_AP_dec(n,q,sigma,t,B,Br,a,b,w,s,s_prime):
     """ Perform Bootstrap AP with Decomposition Br
     Params:
     @n       (int): security parameter (underlying lattice dimension)
     @q       (int): quotient modulus Zq
-    @𝜎     (float): standard deviation of discrete Gaussian
+    @sigma     (float): standard deviation of discrete Gaussian
     @s    (poly1d): secret key
     @t       (int): message modulus
     @B       (int): base for decomposition
@@ -237,11 +242,11 @@ def bootstrap_AP_dec(n,q,σ,t,B,Br,a,b,w,s,s_prime):
     (a0,b0) = LWE_s with small errors
     """
     # get matrix of Bootstrap Keys
-    BK = get_BK_dec(n=n,q=q,σ=σ,t=t,B=B,Br=Br,s=s,s_prime=s_prime)
+    BK = get_BK_dec(n=n,q=q,sigma=sigma,t=t,B=B,Br=Br,s=s,s_prime=s_prime)
     # Step 1. ACC-part to get RLWE under s_prime
     a_prime, b_prime = accu_AP_dec(n=n,q=q,B=B,Br=Br,a=a,b=b,w=w,BK=BK)
     # Step 2. Perform KeySwitch RLWE_{s'} --> RLWE_{s}
-    a_poly, b_poly = key_switch(n=n,q=q,B=B,𝜎=𝜎,s=s,
+    a_poly, b_poly = key_switch(n=n,q=q,B=B,sigma=sigma,s=s,
                                 s_prime=s_prime,a_prime=a_prime,b_prime=b_prime)
     # Step 3. Extract cipher LWE of coeff_0(RLWE_{s})
     a_0, b_0 = extract_RLWE(a=a_poly,b=poly,i_coeff=0)
