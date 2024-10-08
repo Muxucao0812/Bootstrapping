@@ -102,7 +102,10 @@ def inv_RLWE(n,q,s,t,a,b):
     @m_decifer (poly1d): decoded message
     """
     temp = mod(poly=b-(a*s),q=q,poly_modulus=np.poly1d([1] + ((n - 1) * [0]) + [1]))
-    return  np.poly1d((np.round((t/q)*temp)%t).astype(int))
+    temp1 = np.round((t/q)*temp)
+    temp2 = temp1 % t
+    return temp2.astype(int)
+
 
 
 def RGSW(n,q,sigma,s,t,B,m):
@@ -126,12 +129,10 @@ def RGSW(n,q,sigma,s,t,B,m):
     G = np.kron(a=np.eye(2),b=powers.reshape(-1,1))
     # Encode all 0 with RLWE
     A = np.empty(shape=((2*k,2)),dtype=object)
+    a,b = RLWE(n=n,q=q,sigma=sigma,s=s,t=t,m=np.poly1d(np.zeros(n+1)))
     for i in range(2*k):
-        a,b = RLWE(n=n,q=q,sigma=sigma,s=s,t=t,m=np.poly1d(np.zeros(n+1)))
-        A[i,0] = mod(poly=(a + G[i,0]*m),
-                     q=q,poly_modulus=pol_mod)
-        A[i,1] = mod(poly=(b + G[i,1]*m),
-                     q=q,poly_modulus=pol_mod)
+        A[i,0] = mod(poly=(a + G[i,0]*m), q=q,poly_modulus=pol_mod)
+        A[i,1] = mod(poly=(b + G[i,1]*m), q=q,poly_modulus=pol_mod)
     return A
 
 
@@ -163,8 +164,10 @@ def RLWE_prod(n,q,sigma,s,t,B,m0,m1):
     # concatenate to perform product
     ab_decomp = np.concatenate((a_decomp,b_decomp))
     
+    ab_decomp = ab_decomp.reshape(1,-1)
+    
     # perform product
-    prod = np.tensordot(a=ab_decomp.reshape(1,-1),b=M,axes=1)
+    prod = np.tensordot(a=ab_decomp,b=M,axes=1)
     prod0 = mod(poly=prod[0,0],q=q,poly_modulus=np.poly1d([1] + ((n - 1) * [0]) + [1]))
     prod1 = mod(poly=prod[0,1],q=q,poly_modulus=np.poly1d([1] + ((n - 1) * [0]) + [1]))
     return prod0, prod1

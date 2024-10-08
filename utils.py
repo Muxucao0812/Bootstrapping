@@ -104,7 +104,15 @@ def mod(poly, q, poly_modulus):
     Returns:
     poly1d object of degree n with coefficients in Z/qZ
     """
-    return np.poly1d(np.floor(np.polydiv(poly, poly_modulus)[1]).astype(int) % q)
+    
+    # step 1
+    temp = np.polydiv(poly, poly_modulus)
+    # step 2
+    temp1 = np.floor(temp[1]).astype(int)
+    # step 3
+    return np.poly1d(temp1 % q)
+    
+
 
 # Function to perform decomposition in base B for polynomial
 def base_decomp(poly, q, B):
@@ -119,8 +127,20 @@ def base_decomp(poly, q, B):
     """
     k = floor(log(q,B))
     result = np.zeros(shape=k,dtype=object)
+    poly_coeffs_length = len(poly.coeffs)  # 获取原始多项式的系数长度
     for i in range(k):
         result[i] = np.poly1d(np.floor(poly / B ** i).astype(int) % B)
+         
+        # 获取当前多项式分解结果的系数列表
+        current_coeffs = result[i].coeffs.tolist()
+        current_coeffs_length = len(current_coeffs)
+        
+        # 如果当前项的系数长度与原始多项式不符，前面补 0
+        if current_coeffs_length < poly_coeffs_length:
+            num_zeros = poly_coeffs_length - current_coeffs_length
+            temp = [0] * num_zeros + current_coeffs
+            result[i] = np.poly1d(temp)
+          
     return result
 
 # Function to perform decomposition in base B

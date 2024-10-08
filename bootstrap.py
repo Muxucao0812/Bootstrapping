@@ -43,6 +43,7 @@ def extract_RLWE(n,a,b,i_coeff):
     return a_i, np.array([coeff_b])
 
 
+
 # Function to perform KeySwitch
 def key_switch(n,q,B,sigma,t,s,s_prime,a_prime,b_prime):
     """ Function to perform KeySwitch 
@@ -69,25 +70,46 @@ def key_switch(n,q,B,sigma,t,s,s_prime,a_prime,b_prime):
     
     # initialize matrix of KeySwitch values
     KS = np.empty((k,2),dtype=object)
+    
     # fill KS matrix
     for j,Bj in enumerate(powers):
         # compute s_prime * Bj
-        temp = int(Bj)*s_prime.coef % q
-
-        temp = np.poly1d(temp)
+        Bj_s_prime = np.poly1d(int(Bj)*s_prime.coef % q)
         # Encrypt the RLWE_s (B^j s')
-        KS_ja, KS_jb = RLWE(n=n,q=q,sigma=sigma,s=s,t=t,m=temp)
+        KS_ja, KS_jb = RLWE(n=n,q=q,sigma=sigma,s=s,t=t,m=Bj_s_prime)
         KS[j,0] = KS_ja
         KS[j,1] = KS_jb
-    # perform product
-    prod = np.tensordot(a=a_prime_dec.reshape(1,-1),b=KS,axes=1)
+        
+    # '''
+    # method 1: perform product and apply modulus 
+    # '''
+    # # perform product
+    # prod = np.tensordot(a=a_prime_dec.reshape(1,-1),b=KS,axes=1)
     
+    # pol_mod = np.poly1d([1] + ((n - 1) * [0]) + [1])
+    # prod0 = mod(poly=prod[0,0],q=q,poly_modulus=pol_mod)
+    # prod1 = mod(poly=prod[0,1],q=q,poly_modulus=pol_mod)
+  
+    '''
+    method 2: perform product and apply modulus
+    '''
+    # Initialize results
+    prod0 = np.poly1d([0])
+    prod1 = np.poly1d([0])
+    
+    # Perform multiplication and accumulate results
+    for j in range(k):
+        alpha_j = a_prime_dec[j]
+        prod0 += alpha_j * KS[j, 0]
+        prod1 += alpha_j * KS[j, 1]
+    
+    # Apply modulus
     pol_mod = np.poly1d([1] + ((n - 1) * [0]) + [1])
-    prod0 = mod(poly=prod[0,0],q=q,poly_modulus=pol_mod)
-    prod1 = mod(poly=prod[0,1],q=q,poly_modulus=pol_mod)
-    
-    a = mod(poly=-prod0,q=q,poly_modulus=pol_mod)
-    b = mod(poly=b_prime - prod1,q=q,poly_modulus=pol_mod)
+    prod0 = mod(poly=prod0, q=q, poly_modulus=pol_mod)
+    prod1 = mod(poly=prod1, q=q, poly_modulus=pol_mod)
+      
+    a = mod(poly=-prod0,         q=q,   poly_modulus=pol_mod)
+    b = mod(poly=b_prime + prod1,q=q,   poly_modulus=pol_mod)
     return a,b
 
 def get_BK(n,q,sigma,t,B,s,s_prime):
